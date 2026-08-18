@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    // Especifica la versión de JavaScript a la que se compilará el código TypeScript.
+    "target": "ES2022",
+    // Define el sistema de módulos para la salida. "NodeNext" usa Native ES Modules (import/export) de Node.js.
+    "module": "NodeNext",
+    // Determina cómo TypeScript busca y resuelve las rutas de las librerías/módulos importados.
+    "moduleResolution": "NodeNext",
+    // Carpeta raíz donde reside todo el código fuente (.ts).
+    "rootDir": "./src",
+    // Carpeta donde el compilador (tsc) guardará los archivos JavaScript compilados (.js).
+    "outDir": "./dist",
+    // Activa la comprobación estricta de tipos (evita nulos no controlados, 'any' implícitos, etc.).
+    "strict": true,
+    // Facilita la importación de librerías CommonJS usando la sintaxis estándar de ES Modules.
+    "esModuleInterop": true,
+    // Omite la comprobación de tipos de los archivos de declaración (.d.ts) dentro de node_modules para compilar más rápido.
+    "skipLibCheck": true,
+    // Obliga a respetar exactamente las mayúsculas y minúsculas en las rutas de importación de archivos.
+    "forceConsistentCasingInFileNames": true
+  },
+  // Indica a TypeScript qué archivos debe incluir en la compilación (todo lo que esté dentro de /src).
+  "include": [
+    "src/**/*"
+  ]
+}
