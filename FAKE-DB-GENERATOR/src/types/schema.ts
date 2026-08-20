@@ -14,6 +14,7 @@ export type DataType =
     | 'EMAIL'     // Direcciones de correo electrónico válidas
     | 'PHONE'     // Números telefónicos
     | 'FLOAT';    // Números decimales
+
 /**
  * Define la relación de clave foránea (FK) de un campo con otra tabla.
  */
@@ -23,15 +24,26 @@ export interface ForeignKeyReference {
 }
 
 /**
+ * Define la configuración para el control de frecuencia y estrategia de campos vacíos (NULL).
+ */
+export interface NullabilityConfig {
+    minInterval: number;              // Límite inferior del rango de frecuencia (ej. 3)
+    maxInterval: number;              // Límite superior del rango de frecuencia (ej. 5)
+    mode: 'per-row' | 'per-column';   // Estrategia: 'per-row' (por inserción/registro) o 'per-column' (por campo individual)
+}
+
+/**
  * Define la estructura y reglas de una columna o campo individual en la tabla.
  */
 export interface ColumnSchema {
-    id: string;                       // Identificador único del campo
-    name: string;                     // Nombre físico de la columna en la BDD (ej. "user_id")
-    type: DataType;                   // Tipo de dato asociado
-    isPk: boolean;                    // Indica si la columna es Clave Primaria (Primary Key)
-    isNullable: boolean;              // Indica si el campo admite valores nulos (NULL)
-    foreignKey?: ForeignKeyReference; // Configuración opcional (?): solo presente si el campo es FK
+    id: string;                             // Identificador único del campo
+    name: string;                           // Nombre físico de la columna en la BDD (ej. "user_id")
+    type: DataType;                         // Tipo de dato asociado
+    isPk: boolean;                          // Indica si la columna es Clave Primaria (Primary Key)
+    isAutoIncrement?: boolean;              // Nueva opción para claves numéricas autoincrementales
+    isNullable: boolean;                    // Indica si el campo admite valores nulos (NULL)
+    foreignKey?: ForeignKeyReference;       // Configuración opcional (?): solo presente si el campo es FK
+    nullabilityConfig?: NullabilityConfig;  // Configuración opcional para la frecuencia y modo de nulos
 }
 
 /**
