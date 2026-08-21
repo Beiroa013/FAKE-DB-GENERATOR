@@ -43,7 +43,6 @@ export interface ColumnSchema {
     isAutoIncrement?: boolean;              // Nueva opción para claves numéricas autoincrementales
     isNullable: boolean;                    // Indica si el campo admite valores nulos (NULL)
     foreignKey?: ForeignKeyReference;       // Configuración opcional (?): solo presente si el campo es FK
-    nullabilityConfig?: NullabilityConfig;  // Configuración opcional para la frecuencia y modo de nulos
 }
 
 /**
@@ -54,6 +53,7 @@ export interface TableSchema {
     name: string;            // Nombre de la tabla (ej. "orders")
     rowCount: number;        // Cantidad de registros aleatorios (INSERTS) a generar para esta tabla
     columns: ColumnSchema[]; // Arreglo con la definición de todos los campos de la tabla
+    nullabilityConfig?: NullabilityConfig;  // Configuración opcional para la frecuencia y modo de nulos
 }
 
 /**

@@ -2,10 +2,16 @@
   "compilerOptions": {
     // Especifica la versión de JavaScript a la que se compilará el código TypeScript.
     "target": "ES2022",
-    // Define el sistema de módulos para la salida. "NodeNext" usa Native ES Modules (import/export) de Node.js.
-    "module": "NodeNext",
-    // Determina cómo TypeScript busca y resuelve las rutas de las librerías/módulos importados.
-    "moduleResolution": "NodeNext",
+    // Define el sistema de módulos para la salida (ESNext es el estándar para bundlers modernos como Vite).
+    "module": "ESNext",
+    // Determina cómo TypeScript busca y resuelve módulos; 'bundler' es el modo idóneo para Vite.
+    "moduleResolution": "bundler",
+    // Permite importar archivos .ts/.tsx sin necesidad de escribir la extensión .js explícita.
+    "allowImportingTsExtensions": true,
+    // Permite emitir o procesar el código sin generar JavaScript directamente (Vite se encarga del build).
+    "noEmit": true,
+    // Habilita el procesado de sintaxis TSX/JSX.
+    "jsx": "react-jsx",
     // Carpeta raíz donde reside todo el código fuente (.ts).
     "rootDir": "./src",
     // Carpeta donde el compilador (tsc) guardará los archivos JavaScript compilados (.js).

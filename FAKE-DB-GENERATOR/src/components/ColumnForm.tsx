@@ -1,0 +1,246 @@
+import React from 'react';
+import { TableSchema, ColumnSchema, DataType, DatabaseSchema, NullabilityConfig } from '../types/schema';
+
+interface ColumnFormProps {
+    table: TableSchema;
+    schema: DatabaseSchema;
+    updateTable: (tableId: string, updatedFields: Partial<TableSchema>) => void;
+}
+
+const DATA_TYPES: DataType[] = [
+    'INT', 'FLOAT', 'VARCHAR', 'NVARCHAR', 'TEXT', 'BOOLEAN', 'DATE', 'DATETIME', 'UUID', 'EMAIL', 'PHONE'
+];
+
+export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTable }) => {
+    const addColumn = () => {
+        const newCol: ColumnSchema = {
+            id: `col-${Date.now()}`,
+            name: `columna_${table.columns.length + 1}`,
+            type: 'VARCHAR',
+            isPk: false,
+            isAutoIncrement: false,
+            isNullable: false
+        };
+        updateTable(table.id, { columns: [...table.columns, newCol] });
+    };
+
+    const updateColumn = (colId: string, updatedFields: Partial<ColumnSchema>) => {
+        const updatedColumns = table.columns.map((col) => {
+            if (col.id === colId) {
+                return { ...col, ...updatedFields };
+            }
+            return col;
+        });
+
+        // Comprobamos si al actualizar sigue habiendo alguna columna nullable
+        const hasNullable = updatedColumns.some((c) => c.isNullable);
+        const updatedNullConfig = hasNullable
+            ? table.nullabilityConfig || { mode: 'per-row', minInterval: 2, maxInterval: 3 }
+            : undefined;
+
+        updateTable(table.id, {
+            columns: updatedColumns,
+            nullabilityConfig: updatedNullConfig
+        });
+    };
+
+    const removeColumn = (colId: string) => {
+        const remainingColumns = table.columns.filter((c) => c.id !== colId);
+        const hasNullable = remainingColumns.some((c) => c.isNullable);
+
+        updateTable(table.id, {
+            columns: remainingColumns,
+            nullabilityConfig: hasNullable ? table.nullabilityConfig : undefined
+        });
+    };
+
+    // Comprobar si al menos una columna de la tabla permite NULOS
+    const hasNullableColumns = table.columns.some((c) => c.isNullable);
+
+    const nullConfig: NullabilityConfig = table.nullabilityConfig || {
+        mode: 'per-row',
+        minInterval: 2,
+        maxInterval: 3
+    };
+
+    const availableParentTables = schema.tables.filter((t) => t.id !== table.id);
+
+    return (
+        <div style={{ marginTop: '15px' }}>
+            <h4>Columnas:</h4>
+            <button onClick={addColumn}>+ Añadir Columna</button>
+
+            {/* PANEL GLOBAL DE CONFIGURACIÓN DE NULOS DE LA TABLA */}
+            {hasNullableColumns && (
+                <div style={{
+                    backgroundColor: '#f0f7ff',
+                    border: '1px solid #b6d4fe',
+                    borderRadius: '6px',
+                    padding: '12px',
+                    marginTop: '10px',
+                    marginBottom: '10px'
+                }}>
+                    <strong style={{ color: '#084298' }}>⚙️ Configuración Global de Nulos para la tabla "{table.name}":</strong>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '8px', alignItems: 'center' }}>
+                        <label>
+                            Estrategia:&nbsp;
+                            <select
+                                value={nullConfig.mode}
+                                onChange={(e) =>
+                                    updateTable(table.id, {
+                                        nullabilityConfig: {
+                                            ...nullConfig,
+                                            mode: e.target.value as 'per-row' | 'per-column'
+                                        }
+                                    })
+                                }
+                            >
+                                <option value="per-row">Por Registro (per-row)</option>
+                                <option value="per-column">Por Campo (per-column)</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            Mín. Intervalo:&nbsp;
+                            <input
+                                type="number"
+                                min="1"
+                                style={{ width: '55px' }}
+                                value={nullConfig.minInterval}
+                                onChange={(e) =>
+                                    updateTable(table.id, {
+                                        nullabilityConfig: {
+                                            ...nullConfig,
+                                            minInterval: Number(e.target.value)
+                                        }
+                                    })
+                                }
+                            />
+                        </label>
+
+                        <label>
+                            Máx. Intervalo:&nbsp;
+                            <input
+                                type="number"
+                                min="1"
+                                style={{ width: '55px' }}
+                                value={nullConfig.maxInterval}
+                                onChange={(e) =>
+                                    updateTable(table.id, {
+                                        nullabilityConfig: {
+                                            ...nullConfig,
+                                            maxInterval: Number(e.target.value)
+                                        }
+                                    })
+                                }
+                            />
+                        </label>
+                    </div>
+                </div>
+            )}
+
+            {/* TABLA DE COLUMNAS */}
+            <table border={1} cellPadding={5} style={{ marginTop: '10px', width: '100%' }}>
+                <thead>
+                    <tr>
+                        <th>Nombre Columna</th>
+                        <th>Tipo Dato</th>
+                        <th>PK</th>
+                        <th>Auto Inc</th>
+                        <th>Permite Null</th>
+                        <th>Foreign Key (FK)</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table.columns.map((col) => {
+                        const selectedParentTable = schema.tables.find((t) => t.name === col.foreignKey?.targetTable);
+
+                        return (
+                            <tr key={col.id}>
+                                <td>
+                                    <input
+                                        type="text"
+                                        value={col.name}
+                                        onChange={(e) => updateColumn(col.id, { name: e.target.value })}
+                                    />
+                                </td>
+                                <td>
+                                    <select
+                                        value={col.type}
+                                        onChange={(e) => updateColumn(col.id, { type: e.target.value as DataType })}
+                                    >
+                                        {DATA_TYPES.map((type) => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </td>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={col.isPk}
+                                        onChange={(e) => updateColumn(col.id, { isPk: e.target.checked })}
+                                    />
+                                </td>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={col.isAutoIncrement || false}
+                                        onChange={(e) => updateColumn(col.id, { isAutoIncrement: e.target.checked })}
+                                    />
+                                </td>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={col.isNullable}
+                                        onChange={(e) => updateColumn(col.id, { isNullable: e.target.checked })}
+                                    />
+                                </td>
+                                <td>
+                                    <select
+                                        value={col.foreignKey?.targetTable || ''}
+                                        onChange={(e) => {
+                                            const targetTable = e.target.value;
+                                            if (!targetTable) {
+                                                updateColumn(col.id, { foreignKey: undefined });
+                                            } else {
+                                                const pTable = schema.tables.find((t) => t.name === targetTable);
+                                                const pkCol = pTable?.columns.find((c) => c.isPk)?.name || 'id';
+                                                updateColumn(col.id, {
+                                                    foreignKey: { targetTable, targetColumn: pkCol }
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        <option value="">-- No es FK --</option>
+                                        {availableParentTables.map((pt) => (
+                                            <option key={pt.id} value={pt.name}>{pt.name}</option>
+                                        ))}
+                                    </select>
+
+                                    {col.foreignKey && selectedParentTable && (
+                                        <select
+                                            value={col.foreignKey.targetColumn}
+                                            onChange={(e) =>
+                                                updateColumn(col.id, {
+                                                    foreignKey: { ...col.foreignKey!, targetColumn: e.target.value }
+                                                })
+                                            }
+                                        >
+                                            {selectedParentTable.columns.map((pCol) => (
+                                                <option key={pCol.id} value={pCol.name}>{pCol.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </td>
+                                <td>
+                                    <button onClick={() => removeColumn(col.id)}>Borrar</button>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+};

@@ -53,7 +53,6 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
         const nullableColumns = table.columns.filter(col => col.isNullable && !col.isPk);
 
         // --- GESTIÓN DE AUTOINCREMENTALES ---
-        // Lleva la secuencia secuencial (1, 2, 3...) para columnas marcadas como isAutoIncrement
         const autoIncrementCounters = new Map<string, number>();
         table.columns.forEach(col => {
             if (col.isAutoIncrement) {
@@ -61,32 +60,30 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
             }
         });
 
-        // --- ESTRUCTURAS Y ESTADOS PARA AMBOS MODOS DE NULLS ---
+        // --- ESTRUCTURAS Y ESTADOS PARA LA CONFIGURACIÓN DE NULOS A NIVEL DE TABLA ---
+        // Se obtiene la configuración desde table.nullabilityConfig
+        const nullConfig = table.nullabilityConfig || {
+            mode: 'per-row',
+            minInterval: 2,
+            maxInterval: 3
+        };
 
-        // A) MODO POR COLUMNA ('per-column'): Contadores y objetivos independientes
+        // A) MODO POR COLUMNA ('per-column'): Contadores y objetivos independientes por columna
         const colCounters = new Map<string, number>();
         const colTargets = new Map<string, number>();
 
-        nullableColumns.forEach(col => {
-            if (col.nullabilityConfig && col.nullabilityConfig.mode === 'per-column') {
+        if (nullConfig.mode === 'per-column') {
+            nullableColumns.forEach(col => {
                 colCounters.set(col.name, 0);
-                const initialTarget = getRandomInt(
-                    col.nullabilityConfig.minInterval,
-                    col.nullabilityConfig.maxInterval
-                );
+                const initialTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
                 colTargets.set(col.name, initialTarget);
-            }
-        });
+            });
+        }
 
-        // B) MODO POR FILA ('per-row'): Contador y objetivo unificado a nivel de inserción
+        // B) MODO POR FILA ('per-row'): Contador y objetivo unificado a nivel de inserción de la tabla
         let rowCounter = 0;
-        const rowConfigColumn = nullableColumns.find(
-            col => col.nullabilityConfig && col.nullabilityConfig.mode === 'per-row'
-        );
-        const rowConfig = rowConfigColumn?.nullabilityConfig;
-
-        let rowTarget = rowConfig
-            ? getRandomInt(rowConfig.minInterval, rowConfig.maxInterval)
+        let rowTarget = nullConfig.mode === 'per-row'
+            ? getRandomInt(nullConfig.minInterval, nullConfig.maxInterval)
             : null;
 
         // --- BUCLE PRINCIPAL DE INSERCIÓN DE REGISTROS ---
@@ -96,59 +93,47 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
 
             // Evaluamos si el MODO POR FILA se activa en esta iteración
             let isRowModeNullActive = false;
-            if (rowConfig && rowTarget !== null) {
+            if (nullConfig.mode === 'per-row' && rowTarget !== null) {
                 if (rowCounter >= rowTarget) {
                     isRowModeNullActive = true;
                     rowCounter = 0; // Reiniciamos contador de filas
-                    rowTarget = getRandomInt(rowConfig.minInterval, rowConfig.maxInterval);
+                    rowTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
                 }
             }
 
-            // Si el MODO POR FILA está activo, elegimos aleatoriamente un grupo de columnas con modo 'per-row' para vaciar
+            // Si el MODO POR FILA está activo, elegimos aleatoriamente qué columnas marcadas como nullable se vacían
             const rowColumnsToNull = isRowModeNullActive
-                ? getRandomSubset(nullableColumns.filter(c => c.nullabilityConfig?.mode === 'per-row')).map(c => c.name)
+                ? getRandomSubset(nullableColumns).map(c => c.name)
                 : [];
 
             table.columns.forEach((column: ColumnSchema) => {
                 let shouldBeNull = false;
 
                 if (column.isNullable && !column.isPk) {
-                    // IF PRINCIPAL: EVALUACIÓN SEGÚN EL MODO CONFIGURADO
-                    if (column.nullabilityConfig) {
-
-                        // OPCIÓN A: MODO POR FILA ('per-row')
-                        if (column.nullabilityConfig.mode === 'per-row') {
-                            if (rowColumnsToNull.includes(column.name)) {
-                                shouldBeNull = true;
-                            }
+                    // OPCIÓN A: MODO POR FILA ('per-row') A NIVEL DE TABLA
+                    if (nullConfig.mode === 'per-row') {
+                        if (rowColumnsToNull.includes(column.name)) {
+                            shouldBeNull = true;
                         }
-                        // OPCIÓN B: MODO POR COLUMNA ('per-column')
-                        else if (column.nullabilityConfig.mode === 'per-column') {
-                            const currentCounter = (colCounters.get(column.name) || 0) + 1;
-                            const target = colTargets.get(column.name) || column.nullabilityConfig.minInterval;
-
-                            if (currentCounter >= target) {
-                                shouldBeNull = true;
-                                colCounters.set(column.name, 0); // Reiniciar contador de esta columna
-                                const newTarget = getRandomInt(
-                                    column.nullabilityConfig.minInterval,
-                                    column.nullabilityConfig.maxInterval
-                                );
-                                colTargets.set(column.name, newTarget);
-                            } else {
-                                colCounters.set(column.name, currentCounter);
-                            }
-                        }
-
                     }
-                    // OPCIÓN C: SIN CONFIGURACIÓN (Probabilidad por defecto del 20%)
-                    else if (Math.random() < 0.2) {
-                        shouldBeNull = true;
+                    // OPCIÓN B: MODO POR COLUMNA ('per-column') A NIVEL DE TABLA
+                    else if (nullConfig.mode === 'per-column') {
+                        const currentCounter = (colCounters.get(column.name) || 0) + 1;
+                        const target = colTargets.get(column.name) || nullConfig.minInterval;
+
+                        if (currentCounter >= target) {
+                            shouldBeNull = true;
+                            colCounters.set(column.name, 0); // Reiniciar contador de esta columna
+                            const newTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
+                            colTargets.set(column.name, newTarget);
+                        } else {
+                            colCounters.set(column.name, currentCounter);
+                        }
                     }
                 }
 
                 // --- ASIGNACIÓN DE VALORES AL REGISTRO ---
-                // CASO 1: Es columna Autoincremental -> Asignar número secuencial
+                // CASO 1: Es columna Autoincremental
                 if (column.isAutoIncrement) {
                     const currentVal = autoIncrementCounters.get(column.name) || 1;
                     row[column.name] = currentVal;
@@ -158,7 +143,7 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
                 else if (shouldBeNull) {
                     row[column.name] = null;
                 }
-                // CASO 3: Es Foreign Key (FK) -> Asignar una PK existente de la tabla padre
+                // CASO 3: Es Foreign Key (FK)
                 else if (column.foreignKey) {
                     const parentTable = column.foreignKey.targetTable;
                     const parentPKs = primaryKeyMap.get(parentTable) || [];
