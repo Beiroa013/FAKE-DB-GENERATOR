@@ -1,6 +1,6 @@
 import { DatabaseSchema, TableSchema, ColumnSchema } from '../types/schema.js';
 import { sortTablesByDependencies } from '../utils/topologicalSort.js';
-import { generateValueByDataType } from './valueGenerator.js';
+import { generateValueByColumn } from './valueGenerator.js';
 
 // Representa un registro generado como un objeto clave-valor
 export type RowData = Record<string, any>;
@@ -157,9 +157,9 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
                     const randomParentPk = parentPKs[Math.floor(Math.random() * parentPKs.length)];
                     row[column.name] = randomParentPk;
                 }
-                // CASO 4: Generación regular por DataType
+                // CASO 4: Generación regular por DataType o lista de valores personalizados
                 else {
-                    row[column.name] = generateValueByDataType(column.type);
+                    row[column.name] = generateValueByColumn(column);
                 }
             });
 

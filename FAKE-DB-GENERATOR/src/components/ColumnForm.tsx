@@ -32,7 +32,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
             return col;
         });
 
-        // Comprobamos si al actualizar sigue habiendo alguna columna nullable
         const hasNullable = updatedColumns.some((c) => c.isNullable);
         const updatedNullConfig = hasNullable
             ? table.nullabilityConfig || { mode: 'per-row', minInterval: 2, maxInterval: 3 }
@@ -54,9 +53,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
         });
     };
 
-    // Comprobar si al menos una columna de la tabla permite NULOS
     const hasNullableColumns = table.columns.some((c) => c.isNullable);
-
     const nullConfig: NullabilityConfig = table.nullabilityConfig || {
         mode: 'per-row',
         minInterval: 2,
@@ -70,7 +67,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
             <h4>Columnas:</h4>
             <button onClick={addColumn}>+ Añadir Columna</button>
 
-            {/* PANEL GLOBAL DE CONFIGURACIÓN DE NULOS DE LA TABLA */}
             {hasNullableColumns && (
                 <div style={{
                     backgroundColor: '#f0f7ff',
@@ -139,7 +135,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                 </div>
             )}
 
-            {/* TABLA DE COLUMNAS */}
             <table border={1} cellPadding={5} style={{ marginTop: '10px', width: '100%' }}>
                 <thead>
                     <tr>
@@ -148,6 +143,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                         <th>PK</th>
                         <th>Auto Inc</th>
                         <th>Permite Null</th>
+                        <th>Valores / Origen</th>
                         <th>Foreign Key (FK)</th>
                         <th>Acción</th>
                     </tr>
@@ -155,6 +151,12 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                 <tbody>
                     {table.columns.map((col) => {
                         const selectedParentTable = schema.tables.find((t) => t.name === col.foreignKey?.targetTable);
+                        const isNumeric = col.type === 'INT' || col.type === 'FLOAT';
+
+                        // Determinar modo activo
+                        let currentMode = 'random';
+                        if (Array.isArray(col.customValues)) currentMode = 'custom';
+                        else if (col.numericRange) currentMode = 'range';
 
                         return (
                             <tr key={col.id}>
@@ -168,7 +170,16 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                 <td>
                                     <select
                                         value={col.type}
-                                        onChange={(e) => updateColumn(col.id, { type: e.target.value as DataType })}
+                                        onChange={(e) => {
+                                            const newType = e.target.value as DataType;
+                                            // Si deja de ser numérico, limpiamos el rango y decimales
+                                            const isNewTypeNumeric = newType === 'INT' || newType === 'FLOAT';
+                                            updateColumn(col.id, {
+                                                type: newType,
+                                                numericRange: isNewTypeNumeric ? col.numericRange : undefined,
+                                                decimalPlaces: newType === 'FLOAT' ? (col.decimalPlaces ?? 2) : undefined
+                                            });
+                                        }}
                                     >
                                         {DATA_TYPES.map((type) => (
                                             <option key={type} value={type}>{type}</option>
@@ -195,6 +206,94 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         checked={col.isNullable}
                                         onChange={(e) => updateColumn(col.id, { isNullable: e.target.checked })}
                                     />
+                                </td>
+                                <td>
+                                    <select
+                                        value={currentMode}
+                                        onChange={(e) => {
+                                            const mode = e.target.value;
+                                            if (mode === 'custom') {
+                                                updateColumn(col.id, { customValues: [], numericRange: undefined });
+                                            } else if (mode === 'range') {
+                                                updateColumn(col.id, { customValues: undefined, numericRange: { min: 1, max: 100 } });
+                                            } else {
+                                                updateColumn(col.id, { customValues: undefined, numericRange: undefined });
+                                            }
+                                        }}
+                                    >
+                                        <option value="random">🎲 100% Aleatorio</option>
+                                        <option value="custom">📝 Lista Personalizada</option>
+                                        {isNumeric && <option value="range">📏 Rango Numérico</option>}
+                                    </select>
+
+                                    {/* Input para Lista Personalizada */}
+                                    {currentMode === 'custom' && (
+                                        <div style={{ marginTop: '5px' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Ej: Masculino, Femenino"
+                                                style={{ width: '90%' }}
+                                                value={col.customValues?.join(', ') || ''}
+                                                onChange={(e) => {
+                                                    const valuesArray = e.target.value.split(',').map((v) => v.trim());
+                                                    updateColumn(col.id, { customValues: valuesArray });
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Inputs para Rango Numérico */}
+                                    {currentMode === 'range' && isNumeric && (
+                                        <div style={{ marginTop: '5px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label style={{ fontSize: '12px' }}>Mín:</label>
+                                            <input
+                                                type="number"
+                                                style={{ width: '50px' }}
+                                                value={col.numericRange?.min ?? 1}
+                                                onChange={(e) =>
+                                                    updateColumn(col.id, {
+                                                        numericRange: {
+                                                            min: Number(e.target.value),
+                                                            max: col.numericRange?.max ?? 100
+                                                        }
+                                                    })
+                                                }
+                                            />
+                                            <label style={{ fontSize: '12px' }}>Máx:</label>
+                                            <input
+                                                type="number"
+                                                style={{ width: '50px' }}
+                                                value={col.numericRange?.max ?? 100}
+                                                onChange={(e) =>
+                                                    updateColumn(col.id, {
+                                                        numericRange: {
+                                                            min: col.numericRange?.min ?? 1,
+                                                            max: Number(e.target.value)
+                                                        }
+                                                    })
+                                                }
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Input para Precisión Decimal (FLOAT) */}
+                                    {col.type === 'FLOAT' && (
+                                        <div style={{ marginTop: '5px', fontSize: '12px' }}>
+                                            <label>
+                                                Decimales:&nbsp;
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="6"
+                                                    style={{ width: '40px' }}
+                                                    value={col.decimalPlaces ?? 2}
+                                                    onChange={(e) =>
+                                                        updateColumn(col.id, { decimalPlaces: Math.max(0, Number(e.target.value)) })
+                                                    }
+                                                />
+                                            </label>
+                                        </div>
+                                    )}
                                 </td>
                                 <td>
                                     <select

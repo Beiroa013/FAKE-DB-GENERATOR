@@ -35,6 +35,11 @@ export interface NullabilityConfig {
 /**
  * Define la estructura y reglas de una columna o campo individual en la tabla.
  */
+// Valores minimos y maximos introducidos por el usuario final.
+export interface NumericRange {
+    min: number;
+    max: number;
+}
 export interface ColumnSchema {
     id: string;                             // Identificador único del campo
     name: string;                           // Nombre físico de la columna en la BDD (ej. "user_id")
@@ -43,6 +48,9 @@ export interface ColumnSchema {
     isAutoIncrement?: boolean;              // Nueva opción para claves numéricas autoincrementales
     isNullable: boolean;                    // Indica si el campo admite valores nulos (NULL)
     foreignKey?: ForeignKeyReference;       // Configuración opcional (?): solo presente si el campo es FK
+    customValues?: string[];                // Array para lista de valores manuales.
+    numericRange?: NumericRange;            // Rango para INT/FLOAT
+    decimalPlaces?: number;                 // Cantidad de ceros/decimales para FLOAT (default: 2)
 }
 
 /**
