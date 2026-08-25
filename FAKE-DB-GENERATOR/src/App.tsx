@@ -60,7 +60,7 @@ export const App: React.FC = () => {
             )}
 
             {/* Salida del resultado SQL */}
-            {generatedSql && <SqlOutput sql={generatedSql} />}
+            {generatedSql && <SqlOutput sql={generatedSql} dbName={schema.dbName} />}
         </div>
     );
 };

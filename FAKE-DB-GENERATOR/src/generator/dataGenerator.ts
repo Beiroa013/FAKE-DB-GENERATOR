@@ -52,6 +52,14 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
         // Identificar todas las columnas de esta tabla que permiten NULLs y no son PKs
         const nullableColumns = table.columns.filter(col => col.isNullable && !col.isPk);
 
+        // Map para llevar el registro de valores únicos generados en esta tabla (para UNIQUE y PK)
+        const uniqueValuesMap = new Map<string, Set<any>>();
+        table.columns.forEach(col => {
+            if (col.isUnique || col.isPk) {
+                uniqueValuesMap.set(col.name, new Set());
+            }
+        });
+
         // --- GESTIÓN DE AUTOINCREMENTALES ---
         const autoIncrementCounters = new Map<string, number>();
         table.columns.forEach(col => {
@@ -138,6 +146,11 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
                     const currentVal = autoIncrementCounters.get(column.name) || 1;
                     row[column.name] = currentVal;
                     autoIncrementCounters.set(column.name, currentVal + 1);
+
+                    // Registrar en el conjunto de únicos si corresponde
+                    if (uniqueValuesMap.has(column.name)) {
+                        uniqueValuesMap.get(column.name)!.add(currentVal);
+                    }
                 }
                 // CASO 2: Dejar celda como NULL
                 else if (shouldBeNull) {
@@ -157,9 +170,33 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
                     const randomParentPk = parentPKs[Math.floor(Math.random() * parentPKs.length)];
                     row[column.name] = randomParentPk;
                 }
-                // CASO 4: Generación regular por DataType o lista de valores personalizados
+                // CASO 4: Generación regular por DataType o lista de valores personalizados (Soporta restricción UNIQUE)
                 else {
-                    row[column.name] = generateValueByColumn(column);
+                    const isUniqueRequired = column.isUnique || column.isPk;
+                    const existingSet = uniqueValuesMap.get(column.name);
+
+                    let generatedVal: any;
+                    let attempts = 0;
+                    const maxAttempts = 1000;
+
+                    // Bucle de reintentos para asegurar unicidad si la columna está marcada como UNIQUE/PK
+                    do {
+                        generatedVal = generateValueByColumn(column);
+                        attempts++;
+
+                        // Mecanismo de seguridad en caso de rangos/listas agotadas
+                        if (attempts > maxAttempts && isUniqueRequired) {
+                            console.warn(`[Warning]: Rango agotado para la columna '${column.name}'. Se genera un valor único fallback.`);
+                            generatedVal = `${generatedVal}_${i}`;
+                            break;
+                        }
+                    } while (isUniqueRequired && existingSet && existingSet.has(generatedVal));
+
+                    if (isUniqueRequired && existingSet) {
+                        existingSet.add(generatedVal);
+                    }
+
+                    row[column.name] = generatedVal;
                 }
             });
 

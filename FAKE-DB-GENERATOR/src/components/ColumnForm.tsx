@@ -19,7 +19,8 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
             type: 'VARCHAR',
             isPk: false,
             isAutoIncrement: false,
-            isNullable: false
+            isNullable: false,
+            isUnique: false // Por defecto NOT UNIQUE
         };
         updateTable(table.id, { columns: [...table.columns, newCol] });
     };
@@ -27,6 +28,10 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
     const updateColumn = (colId: string, updatedFields: Partial<ColumnSchema>) => {
         const updatedColumns = table.columns.map((col) => {
             if (col.id === colId) {
+                // Si se marca como PK, automáticamente es Unique
+                if (updatedFields.isPk) {
+                    updatedFields.isUnique = true;
+                }
                 return { ...col, ...updatedFields };
             }
             return col;
@@ -141,6 +146,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                         <th>Nombre Columna</th>
                         <th>Tipo Dato</th>
                         <th>PK</th>
+                        <th>Unique</th>
                         <th>Auto Inc</th>
                         <th>Permite Null</th>
                         <th>Valores / Origen</th>
@@ -153,7 +159,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                         const selectedParentTable = schema.tables.find((t) => t.name === col.foreignKey?.targetTable);
                         const isNumeric = col.type === 'INT' || col.type === 'FLOAT';
 
-                        // Determinar modo activo
                         let currentMode = 'random';
                         if (Array.isArray(col.customValues)) currentMode = 'custom';
                         else if (col.numericRange) currentMode = 'range';
@@ -172,7 +177,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         value={col.type}
                                         onChange={(e) => {
                                             const newType = e.target.value as DataType;
-                                            // Si deja de ser numérico, limpiamos el rango y decimales
                                             const isNewTypeNumeric = newType === 'INT' || newType === 'FLOAT';
                                             updateColumn(col.id, {
                                                 type: newType,
@@ -191,6 +195,14 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         type="checkbox"
                                         checked={col.isPk}
                                         onChange={(e) => updateColumn(col.id, { isPk: e.target.checked })}
+                                    />
+                                </td>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        checked={col.isUnique || col.isPk || false}
+                                        disabled={col.isPk} // Si es PK, siempre es UNIQUE obligatorio
+                                        onChange={(e) => updateColumn(col.id, { isUnique: e.target.checked })}
                                     />
                                 </td>
                                 <td>
@@ -226,7 +238,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         {isNumeric && <option value="range">📏 Rango Numérico</option>}
                                     </select>
 
-                                    {/* Input para Lista Personalizada */}
                                     {currentMode === 'custom' && (
                                         <div style={{ marginTop: '5px' }}>
                                             <input
@@ -242,7 +253,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         </div>
                                     )}
 
-                                    {/* Inputs para Rango Numérico */}
                                     {currentMode === 'range' && isNumeric && (
                                         <div style={{ marginTop: '5px', display: 'flex', gap: '5px', alignItems: 'center' }}>
                                             <label style={{ fontSize: '12px' }}>Mín:</label>
@@ -276,7 +286,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         </div>
                                     )}
 
-                                    {/* Input para Precisión Decimal (FLOAT) */}
                                     {col.type === 'FLOAT' && (
                                         <div style={{ marginTop: '5px', fontSize: '12px' }}>
                                             <label>

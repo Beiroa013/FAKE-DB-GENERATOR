@@ -2,6 +2,7 @@ import { DatabaseSchema, TableSchema, DataType } from '../types/schema.js';
 import { sortTablesByDependencies } from '../utils/topologicalSort.js';
 import { GeneratedDatabaseData } from './dataGenerator.js';
 
+
 /**
  * Mapea los tipos de datos de la aplicación (DataType) a tipos de datos nativos de SQL.
  * Convierte tipos como EMAIL o PHONE a VARCHAR válidos para el motor de base de datos.
@@ -136,4 +137,27 @@ export function generateSqlScript(schema: DatabaseSchema, generatedData: Generat
     });
 
     return sqlContent;
+}
+
+/**
+ * Descarga el script SQL generado como un archivo .sql utilizando el nombre de la base de datos (dbName).
+ * 
+ * @param schema Esquema configurado por el usuario
+ * @param generatedData Datos de filas generados
+ */
+export function downloadSqlFile(schema: DatabaseSchema, generatedData: GeneratedDatabaseData): void {
+    const sqlContent = generateSqlScript(schema, generatedData);
+    const fileName = `${(schema.dbName || 'database').trim().toLowerCase().replace(/\s+/g, '_')}.sql`;
+
+    const blob = new Blob([sqlContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
