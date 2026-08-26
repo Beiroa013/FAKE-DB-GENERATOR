@@ -1,5 +1,6 @@
 import React from 'react';
-import { TableSchema, ColumnSchema, DataType, DatabaseSchema, NullabilityConfig } from '../types/schema';
+import { TableSchema, ColumnSchema, DataType, DatabaseSchema, NullabilityConfig, PredefinedListType } from '../types/schema';
+import { PREDEFINED_LIST_OPTIONS } from '../data/predefinedLists';
 
 interface ColumnFormProps {
     table: TableSchema;
@@ -158,10 +159,14 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                     {table.columns.map((col) => {
                         const selectedParentTable = schema.tables.find((t) => t.name === col.foreignKey?.targetTable);
                         const isNumeric = col.type === 'INT' || col.type === 'FLOAT';
+                        const isTextType = col.type === 'VARCHAR' || col.type === 'NVARCHAR';
 
-                        let currentMode = 'random';
-                        if (Array.isArray(col.customValues)) currentMode = 'custom';
-                        else if (col.numericRange) currentMode = 'range';
+                        let currentMode = col.valueSourceType || 'RANDOM';
+                        if (!col.valueSourceType) {
+                            if (Array.isArray(col.customValues)) currentMode = 'CUSTOM_LIST';
+                            else if (col.numericRange) currentMode = 'RANGE';
+                            else if (col.predefinedList) currentMode = 'PREDEFINED_LIST';
+                        }
 
                         return (
                             <tr key={col.id}>
@@ -178,11 +183,21 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         onChange={(e) => {
                                             const newType = e.target.value as DataType;
                                             const isNewTypeNumeric = newType === 'INT' || newType === 'FLOAT';
-                                            updateColumn(col.id, {
+                                            const isNewTypeText = newType === 'VARCHAR' || newType === 'NVARCHAR';
+
+                                            const updatedValues: Partial<ColumnSchema> = {
                                                 type: newType,
                                                 numericRange: isNewTypeNumeric ? col.numericRange : undefined,
                                                 decimalPlaces: newType === 'FLOAT' ? (col.decimalPlaces ?? 2) : undefined
-                                            });
+                                            };
+
+                                            // Si cambia a un tipo que no soporta PREDEFINED_LIST, revertir a RANDOM
+                                            if (!isNewTypeText && col.valueSourceType === 'PREDEFINED_LIST') {
+                                                updatedValues.valueSourceType = 'RANDOM';
+                                                updatedValues.predefinedList = undefined;
+                                            }
+
+                                            updateColumn(col.id, updatedValues);
                                         }}
                                     >
                                         {DATA_TYPES.map((type) => (
@@ -223,22 +238,25 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                     <select
                                         value={currentMode}
                                         onChange={(e) => {
-                                            const mode = e.target.value;
-                                            if (mode === 'custom') {
-                                                updateColumn(col.id, { customValues: [], numericRange: undefined });
-                                            } else if (mode === 'range') {
-                                                updateColumn(col.id, { customValues: undefined, numericRange: { min: 1, max: 100 } });
+                                            const mode = e.target.value as any;
+                                            if (mode === 'CUSTOM_LIST') {
+                                                updateColumn(col.id, { valueSourceType: 'CUSTOM_LIST', customValues: [], numericRange: undefined, predefinedList: undefined });
+                                            } else if (mode === 'RANGE') {
+                                                updateColumn(col.id, { valueSourceType: 'RANGE', customValues: undefined, numericRange: { min: 1, max: 100 }, predefinedList: undefined });
+                                            } else if (mode === 'PREDEFINED_LIST') {
+                                                updateColumn(col.id, { valueSourceType: 'PREDEFINED_LIST', customValues: undefined, numericRange: undefined, predefinedList: 'NOMBRES' });
                                             } else {
-                                                updateColumn(col.id, { customValues: undefined, numericRange: undefined });
+                                                updateColumn(col.id, { valueSourceType: 'RANDOM', customValues: undefined, numericRange: undefined, predefinedList: undefined });
                                             }
                                         }}
                                     >
-                                        <option value="random">🎲 100% Aleatorio</option>
-                                        <option value="custom">📝 Lista Personalizada</option>
-                                        {isNumeric && <option value="range">📏 Rango Numérico</option>}
+                                        <option value="RANDOM">🎲 100% Aleatorio</option>
+                                        <option value="CUSTOM_LIST">📝 Lista Personalizada</option>
+                                        {isNumeric && <option value="RANGE">📏 Rango Numérico</option>}
+                                        {isTextType && <option value="PREDEFINED_LIST">📚 Listas Predefinidas</option>}
                                     </select>
 
-                                    {currentMode === 'custom' && (
+                                    {currentMode === 'CUSTOM_LIST' && (
                                         <div style={{ marginTop: '5px' }}>
                                             <input
                                                 type="text"
@@ -253,7 +271,23 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                         </div>
                                     )}
 
-                                    {currentMode === 'range' && isNumeric && (
+                                    {currentMode === 'PREDEFINED_LIST' && isTextType && (
+                                        <div style={{ marginTop: '5px' }}>
+                                            <select
+                                                value={col.predefinedList || 'NOMBRES'}
+                                                onChange={(e) => updateColumn(col.id, { predefinedList: e.target.value as PredefinedListType })}
+                                                style={{ width: '95%' }}
+                                            >
+                                                {PREDEFINED_LIST_OPTIONS.map((opt) => (
+                                                    <option key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {currentMode === 'RANGE' && isNumeric && (
                                         <div style={{ marginTop: '5px', display: 'flex', gap: '5px', alignItems: 'center' }}>
                                             <label style={{ fontSize: '12px' }}>Mín:</label>
                                             <input

@@ -40,6 +40,13 @@ export interface NumericRange {
     min: number;
     max: number;
 }
+
+// Tipos de listas predefinidas disponibles
+export type PredefinedListType = 'NOMBRES' | 'APELLIDOS' | 'FABRICANTES_VEHICULOS' | 'VEHICULOS' | 'OBJETOS';
+
+// Extendemos los orígenes de valor posibles
+export type ValueSourceType = 'RANDOM' | 'CUSTOM_LIST' | 'RANGE' | 'PREDEFINED_LIST';
+
 export interface ColumnSchema {
     id: string;                             // Identificador único del campo
     name: string;                           // Nombre físico de la columna en la BDD (ej. "user_id")
@@ -47,7 +54,10 @@ export interface ColumnSchema {
     isPk: boolean;                          // Indica si la columna es Clave Primaria (Primary Key)
     isAutoIncrement?: boolean;              // Nueva opción para claves numéricas autoincrementales
     isNullable: boolean;                    // Indica si el campo admite valores nulos (NULL)
+    isUnique?: boolean;                     // Define si el valor debe ser único en la tabla
     foreignKey?: ForeignKeyReference;       // Configuración opcional (?): solo presente si el campo es FK
+    valueSourceType?: ValueSourceType;      // Origen del valor (RANDOM, CUSTOM_LIST, RANGE, PREDEFINED_LIST)
+    predefinedList?: PredefinedListType;    // Selección de la lista predefinida cuando valueSourceType es 'PREDEFINED_LIST'
     customValues?: string[];                // Array para lista de valores manuales.
     numericRange?: NumericRange;            // Rango para INT/FLOAT
     decimalPlaces?: number;                 // Cantidad de ceros/decimales para FLOAT (default: 2)

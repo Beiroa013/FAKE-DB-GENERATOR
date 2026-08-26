@@ -3,6 +3,7 @@
  */
 import { faker } from '@faker-js/faker'; //Importa la librería encargada de generar datos aleatorios de prueba.
 import { DataType, ColumnSchema } from '../types/schema.js'; //Importa la unión de tipos y la interfaz de la columna.
+import { PREDEFINED_LISTS } from '../data/predefinedLists.js'; // Importa las listas de datos predefinidos.
 
 /**
  * Auxiliar para formatear o limitar decimales en FLOATS.
@@ -12,7 +13,7 @@ function formatFloat(val: number, decimals: number = 2): number {
 }
 
 /**
- * Genera un valor evaluando lista personalizada, rango numérico o DataType por defecto.
+ * Genera un valor evaluando lista personalizada, rango numérico, lista predefinida o DataType por defecto.
  * 
  * @param column Configuración completa de la columna
  * @returns Valor seleccionado o generado
@@ -21,7 +22,7 @@ export function generateValueByColumn(column: ColumnSchema): string | number | b
     const decimals = column.decimalPlaces ?? 2;
 
     // 1. Si el usuario definió una lista personalizada de valores y no está vacía
-    if (column.customValues && column.customValues.length > 0) {
+    if ((column.valueSourceType === 'CUSTOM_LIST' || !column.valueSourceType) && column.customValues && column.customValues.length > 0) {
         const validValues = column.customValues.filter(v => v.trim() !== '');
 
         if (validValues.length > 0) {
@@ -41,7 +42,7 @@ export function generateValueByColumn(column: ColumnSchema): string | number | b
     }
 
     // 2. Si el usuario definió un rango numérico (INT o FLOAT)
-    if (column.numericRange) {
+    if ((column.valueSourceType === 'RANGE' || !column.valueSourceType) && column.numericRange) {
         const { min, max } = column.numericRange;
         if (column.type === 'INT') {
             return faker.number.int({ min, max });
@@ -52,7 +53,19 @@ export function generateValueByColumn(column: ColumnSchema): string | number | b
         }
     }
 
-    // 3. Generación automática estándar por DataType
+    // 3. Si el usuario selecciona las listas predefinidas
+    if (column.valueSourceType === 'PREDEFINED_LIST' || column.predefinedList) {
+        const selectedListKey = column.predefinedList;
+        if (selectedListKey && PREDEFINED_LISTS[selectedListKey]) {
+            const list = PREDEFINED_LISTS[selectedListKey];
+            if (list.length > 0) {
+                const randomIndex = Math.floor(Math.random() * list.length);
+                return list[randomIndex];
+            }
+        }
+    }
+
+    // 4. Generación automática estándar por DataType
     return generateValueByColumnDataType(column);
 }
 
