@@ -21,7 +21,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
             isPk: false,
             isAutoIncrement: false,
             isNullable: false,
-            isUnique: false // Por defecto NOT UNIQUE
+            isUnique: false
         };
         updateTable(table.id, { columns: [...table.columns, newCol] });
     };
@@ -29,7 +29,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
     const updateColumn = (colId: string, updatedFields: Partial<ColumnSchema>) => {
         const updatedColumns = table.columns.map((col) => {
             if (col.id === colId) {
-                // Si se marca como PK, automáticamente es Unique
                 if (updatedFields.isPk) {
                     updatedFields.isUnique = true;
                 }
@@ -150,8 +149,8 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                         <th>Unique</th>
                         <th>Auto Inc</th>
                         <th>Permite Null</th>
-                        <th>Valores / Origen</th>
                         <th>Foreign Key (FK)</th>
+                        <th>Valores / Origen</th>
                         <th>Acción</th>
                     </tr>
                 </thead>
@@ -160,6 +159,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                         const selectedParentTable = schema.tables.find((t) => t.name === col.foreignKey?.targetTable);
                         const isNumeric = col.type === 'INT' || col.type === 'FLOAT';
                         const isTextType = col.type === 'VARCHAR' || col.type === 'NVARCHAR';
+                        const isFk = Boolean(col.foreignKey?.targetTable);
 
                         let currentMode = col.valueSourceType || 'RANDOM';
                         if (!col.valueSourceType) {
@@ -180,6 +180,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                 <td>
                                     <select
                                         value={col.type}
+                                        disabled={isFk} // Bloqueado si es FK para prevenir desajustes
                                         onChange={(e) => {
                                             const newType = e.target.value as DataType;
                                             const isNewTypeNumeric = newType === 'INT' || newType === 'FLOAT';
@@ -191,7 +192,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                                 decimalPlaces: newType === 'FLOAT' ? (col.decimalPlaces ?? 2) : undefined
                                             };
 
-                                            // Si cambia a un tipo que no soporta PREDEFINED_LIST, revertir a RANDOM
                                             if (!isNewTypeText && col.valueSourceType === 'PREDEFINED_LIST') {
                                                 updatedValues.valueSourceType = 'RANDOM';
                                                 updatedValues.predefinedList = undefined;
@@ -216,7 +216,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                     <input
                                         type="checkbox"
                                         checked={col.isUnique || col.isPk || false}
-                                        disabled={col.isPk} // Si es PK, siempre es UNIQUE obligatorio
+                                        disabled={col.isPk}
                                         onChange={(e) => updateColumn(col.id, { isUnique: e.target.checked })}
                                     />
                                 </td>
@@ -236,110 +236,6 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                 </td>
                                 <td>
                                     <select
-                                        value={currentMode}
-                                        onChange={(e) => {
-                                            const mode = e.target.value as any;
-                                            if (mode === 'CUSTOM_LIST') {
-                                                updateColumn(col.id, { valueSourceType: 'CUSTOM_LIST', customValues: [], numericRange: undefined, predefinedList: undefined });
-                                            } else if (mode === 'RANGE') {
-                                                updateColumn(col.id, { valueSourceType: 'RANGE', customValues: undefined, numericRange: { min: 1, max: 100 }, predefinedList: undefined });
-                                            } else if (mode === 'PREDEFINED_LIST') {
-                                                updateColumn(col.id, { valueSourceType: 'PREDEFINED_LIST', customValues: undefined, numericRange: undefined, predefinedList: 'NOMBRES' });
-                                            } else {
-                                                updateColumn(col.id, { valueSourceType: 'RANDOM', customValues: undefined, numericRange: undefined, predefinedList: undefined });
-                                            }
-                                        }}
-                                    >
-                                        <option value="RANDOM">🎲 100% Aleatorio</option>
-                                        <option value="CUSTOM_LIST">📝 Lista Personalizada</option>
-                                        {isNumeric && <option value="RANGE">📏 Rango Numérico</option>}
-                                        {isTextType && <option value="PREDEFINED_LIST">📚 Listas Predefinidas</option>}
-                                    </select>
-
-                                    {currentMode === 'CUSTOM_LIST' && (
-                                        <div style={{ marginTop: '5px' }}>
-                                            <input
-                                                type="text"
-                                                placeholder="Ej: Masculino, Femenino"
-                                                style={{ width: '90%' }}
-                                                value={col.customValues?.join(', ') || ''}
-                                                onChange={(e) => {
-                                                    const valuesArray = e.target.value.split(',').map((v) => v.trim());
-                                                    updateColumn(col.id, { customValues: valuesArray });
-                                                }}
-                                            />
-                                        </div>
-                                    )}
-
-                                    {currentMode === 'PREDEFINED_LIST' && isTextType && (
-                                        <div style={{ marginTop: '5px' }}>
-                                            <select
-                                                value={col.predefinedList || 'NOMBRES'}
-                                                onChange={(e) => updateColumn(col.id, { predefinedList: e.target.value as PredefinedListType })}
-                                                style={{ width: '95%' }}
-                                            >
-                                                {PREDEFINED_LIST_OPTIONS.map((opt) => (
-                                                    <option key={opt.value} value={opt.value}>
-                                                        {opt.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    {currentMode === 'RANGE' && isNumeric && (
-                                        <div style={{ marginTop: '5px', display: 'flex', gap: '5px', alignItems: 'center' }}>
-                                            <label style={{ fontSize: '12px' }}>Mín:</label>
-                                            <input
-                                                type="number"
-                                                style={{ width: '50px' }}
-                                                value={col.numericRange?.min ?? 1}
-                                                onChange={(e) =>
-                                                    updateColumn(col.id, {
-                                                        numericRange: {
-                                                            min: Number(e.target.value),
-                                                            max: col.numericRange?.max ?? 100
-                                                        }
-                                                    })
-                                                }
-                                            />
-                                            <label style={{ fontSize: '12px' }}>Máx:</label>
-                                            <input
-                                                type="number"
-                                                style={{ width: '50px' }}
-                                                value={col.numericRange?.max ?? 100}
-                                                onChange={(e) =>
-                                                    updateColumn(col.id, {
-                                                        numericRange: {
-                                                            min: col.numericRange?.min ?? 1,
-                                                            max: Number(e.target.value)
-                                                        }
-                                                    })
-                                                }
-                                            />
-                                        </div>
-                                    )}
-
-                                    {col.type === 'FLOAT' && (
-                                        <div style={{ marginTop: '5px', fontSize: '12px' }}>
-                                            <label>
-                                                Decimales:&nbsp;
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="6"
-                                                    style={{ width: '40px' }}
-                                                    value={col.decimalPlaces ?? 2}
-                                                    onChange={(e) =>
-                                                        updateColumn(col.id, { decimalPlaces: Math.max(0, Number(e.target.value)) })
-                                                    }
-                                                />
-                                            </label>
-                                        </div>
-                                    )}
-                                </td>
-                                <td>
-                                    <select
                                         value={col.foreignKey?.targetTable || ''}
                                         onChange={(e) => {
                                             const targetTable = e.target.value;
@@ -347,9 +243,19 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                                 updateColumn(col.id, { foreignKey: undefined });
                                             } else {
                                                 const pTable = schema.tables.find((t) => t.name === targetTable);
-                                                const pkCol = pTable?.columns.find((c) => c.isPk)?.name || 'id';
+                                                // Buscar columna PK o usar la primera por defecto
+                                                const pkColObj = pTable?.columns.find((c) => c.isPk) || pTable?.columns[0];
+                                                const pkColName = pkColObj?.name || 'id';
+                                                const pkColType = pkColObj?.type || 'INT';
+
                                                 updateColumn(col.id, {
-                                                    foreignKey: { targetTable, targetColumn: pkCol }
+                                                    type: pkColType, // Copia automática del tipo de dato referenciado
+                                                    foreignKey: { targetTable, targetColumn: pkColName },
+                                                    // Limpieza de configuraciones de valor no aplicables a FK
+                                                    valueSourceType: 'RANDOM',
+                                                    customValues: undefined,
+                                                    numericRange: undefined,
+                                                    predefinedList: undefined
                                                 });
                                             }
                                         }}
@@ -363,16 +269,132 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                     {col.foreignKey && selectedParentTable && (
                                         <select
                                             value={col.foreignKey.targetColumn}
-                                            onChange={(e) =>
+                                            onChange={(e) => {
+                                                const targetColName = e.target.value;
+                                                const targetColObj = selectedParentTable.columns.find((c) => c.name === targetColName);
+
                                                 updateColumn(col.id, {
-                                                    foreignKey: { ...col.foreignKey!, targetColumn: e.target.value }
-                                                })
-                                            }
+                                                    type: targetColObj?.type || col.type, // Ajustar al tipo del campo seleccionado si cambia
+                                                    foreignKey: { ...col.foreignKey!, targetColumn: targetColName }
+                                                });
+                                            }}
                                         >
                                             {selectedParentTable.columns.map((pCol) => (
                                                 <option key={pCol.id} value={pCol.name}>{pCol.name}</option>
                                             ))}
                                         </select>
+                                    )}
+                                </td>
+                                <td>
+                                    {isFk ? (
+                                        <span style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>
+                                            🔗 Heredado de FK
+                                        </span>
+                                    ) : (
+                                        <>
+                                            <select
+                                                value={currentMode}
+                                                onChange={(e) => {
+                                                    const mode = e.target.value as any;
+                                                    if (mode === 'CUSTOM_LIST') {
+                                                        updateColumn(col.id, { valueSourceType: 'CUSTOM_LIST', customValues: [], numericRange: undefined, predefinedList: undefined });
+                                                    } else if (mode === 'RANGE') {
+                                                        updateColumn(col.id, { valueSourceType: 'RANGE', customValues: undefined, numericRange: { min: 1, max: 100 }, predefinedList: undefined });
+                                                    } else if (mode === 'PREDEFINED_LIST') {
+                                                        updateColumn(col.id, { valueSourceType: 'PREDEFINED_LIST', customValues: undefined, numericRange: undefined, predefinedList: 'NOMBRES' });
+                                                    } else {
+                                                        updateColumn(col.id, { valueSourceType: 'RANDOM', customValues: undefined, numericRange: undefined, predefinedList: undefined });
+                                                    }
+                                                }}
+                                            >
+                                                <option value="RANDOM">🎲 100% Aleatorio</option>
+                                                <option value="CUSTOM_LIST">📝 Lista Personalizada</option>
+                                                {isNumeric && <option value="RANGE">📏 Rango Numérico</option>}
+                                                {isTextType && <option value="PREDEFINED_LIST">📚 Listas Predefinidas</option>}
+                                            </select>
+
+                                            {currentMode === 'CUSTOM_LIST' && (
+                                                <div style={{ marginTop: '5px' }}>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ej: Masculino, Femenino"
+                                                        style={{ width: '90%' }}
+                                                        value={col.customValues?.join(', ') || ''}
+                                                        onChange={(e) => {
+                                                            const valuesArray = e.target.value.split(',').map((v) => v.trim());
+                                                            updateColumn(col.id, { customValues: valuesArray });
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {currentMode === 'PREDEFINED_LIST' && isTextType && (
+                                                <div style={{ marginTop: '5px' }}>
+                                                    <select
+                                                        value={col.predefinedList || 'NOMBRES'}
+                                                        onChange={(e) => updateColumn(col.id, { predefinedList: e.target.value as PredefinedListType })}
+                                                        style={{ width: '95%' }}
+                                                    >
+                                                        {PREDEFINED_LIST_OPTIONS.map((opt) => (
+                                                            <option key={opt.value} value={opt.value}>
+                                                                {opt.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {currentMode === 'RANGE' && isNumeric && (
+                                                <div style={{ marginTop: '5px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                    <label style={{ fontSize: '12px' }}>Mín:</label>
+                                                    <input
+                                                        type="number"
+                                                        style={{ width: '50px' }}
+                                                        value={col.numericRange?.min ?? 1}
+                                                        onChange={(e) =>
+                                                            updateColumn(col.id, {
+                                                                numericRange: {
+                                                                    min: Number(e.target.value),
+                                                                    max: col.numericRange?.max ?? 100
+                                                                }
+                                                            })
+                                                        }
+                                                    />
+                                                    <label style={{ fontSize: '12px' }}>Máx:</label>
+                                                    <input
+                                                        type="number"
+                                                        style={{ width: '50px' }}
+                                                        value={col.numericRange?.max ?? 100}
+                                                        onChange={(e) =>
+                                                            updateColumn(col.id, {
+                                                                numericRange: {
+                                                                    min: col.numericRange?.min ?? 1,
+                                                                    max: Number(e.target.value)
+                                                                }
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {col.type === 'FLOAT' && (
+                                                <div style={{ marginTop: '5px', fontSize: '12px' }}>
+                                                    <label>
+                                                        Decimales:&nbsp;
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="6"
+                                                            style={{ width: '40px' }}
+                                                            value={col.decimalPlaces ?? 2}
+                                                            onChange={(e) =>
+                                                                updateColumn(col.id, { decimalPlaces: Math.max(0, Number(e.target.value)) })
+                                                            }
+                                                        />
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </td>
                                 <td>
