@@ -39,23 +39,24 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
     // 2. Almacén de filas generadas por tabla
     const generatedData: GeneratedDatabaseData = {};
 
-    // 3. Mapa para guardar las claves primarias (PK) generadas por cada tabla: { 'users': [1, 2, 3] }
-    const primaryKeyMap = new Map<string, any[]>();
+    // 3. Mapa para guardar los registros/columnas generadas por tabla para resolución de FKs
+    const tableDataMap = new Map<string, RowData[]>();
 
     sortedTables.forEach((table: TableSchema) => {
         const tableRows: RowData[] = [];
-        const generatedPKs: any[] = [];
+        const pkColumns = table.columns.filter(col => col.isPk);
+        const hasCompositePk = pkColumns.length > 1;
 
-        // Buscar la columna marcada como Clave Primaria (PK)
-        const pkColumn = table.columns.find(col => col.isPk);
+        // Conjunto para controlar duplicados de claves primarias compuestas (ej: Alumno + Asignatura)
+        const compositePkSet = new Set<string>();
 
-        // Identificar todas las columnas de esta tabla que permiten NULLs y no son PKs
         const nullableColumns = table.columns.filter(col => col.isNullable && !col.isPk);
 
-        // Map para llevar el registro de valores únicos generados en esta tabla (para UNIQUE y PK)
+        // Mapa para llevar el registro de valores únicos generados en esta tabla (para UNIQUE y PK simples)
         const uniqueValuesMap = new Map<string, Set<any>>();
         table.columns.forEach(col => {
-            if (col.isUnique || col.isPk) {
+            // Si es PK compuesta, la unicidad individual por columna no aplica si es FK
+            if (col.isUnique || (col.isPk && !hasCompositePk)) {
                 uniqueValuesMap.set(col.name, new Set());
             }
         });
@@ -69,14 +70,13 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
         });
 
         // --- ESTRUCTURAS Y ESTADOS PARA LA CONFIGURACIÓN DE NULOS A NIVEL DE TABLA ---
-        // Se obtiene la configuración desde table.nullabilityConfig
         const nullConfig = table.nullabilityConfig || {
             mode: 'per-row',
             minInterval: 2,
             maxInterval: 3
         };
 
-        // A) MODO POR COLUMNA ('per-column'): Contadores y objetivos independientes por columna
+        // A) MODO POR COLUMNA ('per-column')
         const colCounters = new Map<string, number>();
         const colTargets = new Map<string, number>();
 
@@ -88,7 +88,7 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
             });
         }
 
-        // B) MODO POR FILA ('per-row'): Contador y objetivo unificado a nivel de inserción de la tabla
+        // B) MODO POR FILA ('per-row')
         let rowCounter = 0;
         let rowTarget = nullConfig.mode === 'per-row'
             ? getRandomInt(nullConfig.minInterval, nullConfig.maxInterval)
@@ -96,123 +96,151 @@ export function generateDatabaseData(schema: DatabaseSchema): GeneratedDatabaseD
 
         // --- BUCLE PRINCIPAL DE INSERCIÓN DE REGISTROS ---
         for (let i = 0; i < table.rowCount; i++) {
-            const row: RowData = {};
-            rowCounter++;
+            let row: RowData = {};
+            let isRowValid = false;
+            let rowAttempts = 0;
+            const maxRowAttempts = 1000;
 
-            // Evaluamos si el MODO POR FILA se activa en esta iteración
-            let isRowModeNullActive = false;
-            if (nullConfig.mode === 'per-row' && rowTarget !== null) {
-                if (rowCounter >= rowTarget) {
-                    isRowModeNullActive = true;
-                    rowCounter = 0; // Reiniciamos contador de filas
-                    rowTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
+            // Bucle de intento para garantizar combinaciones únicas de claves primarias compuestas
+            while (!isRowValid && rowAttempts < maxRowAttempts) {
+                rowAttempts++;
+                row = {};
+                rowCounter++;
+
+                // Evaluamos si el MODO POR FILA se activa en esta iteración
+                let isRowModeNullActive = false;
+                if (nullConfig.mode === 'per-row' && rowTarget !== null) {
+                    if (rowCounter >= rowTarget) {
+                        isRowModeNullActive = true;
+                        rowCounter = 0;
+                        rowTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
+                    }
+                }
+
+                const rowColumnsToNull = isRowModeNullActive
+                    ? getRandomSubset(nullableColumns).map(c => c.name)
+                    : [];
+
+                table.columns.forEach((column: ColumnSchema) => {
+                    let shouldBeNull = false;
+
+                    if (column.isNullable && !column.isPk) {
+                        if (nullConfig.mode === 'per-row') {
+                            if (rowColumnsToNull.includes(column.name)) {
+                                shouldBeNull = true;
+                            }
+                        } else if (nullConfig.mode === 'per-column') {
+                            const currentCounter = (colCounters.get(column.name) || 0) + 1;
+                            const target = colTargets.get(column.name) || nullConfig.minInterval;
+
+                            if (currentCounter >= target) {
+                                shouldBeNull = true;
+                                colCounters.set(column.name, 0);
+                                const newTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
+                                colTargets.set(column.name, newTarget);
+                            } else {
+                                colCounters.set(column.name, currentCounter);
+                            }
+                        }
+                    }
+
+                    // --- ASIGNACIÓN DE VALORES AL REGISTRO ---
+                    // CASO 1: Columna Autoincremental
+                    if (column.isAutoIncrement) {
+                        const currentVal = autoIncrementCounters.get(column.name) || 1;
+                        row[column.name] = currentVal;
+                    }
+                    // CASO 2: Valor NULL
+                    else if (shouldBeNull) {
+                        row[column.name] = null;
+                    }
+                    // CASO 3: Foreign Key (FK)
+                    else if (column.foreignKey) {
+                        const targetTable = column.foreignKey.targetTable;
+                        const targetColumn = column.foreignKey.targetColumn;
+                        const parentRows = tableDataMap.get(targetTable) || [];
+
+                        if (parentRows.length === 0) {
+                            throw new Error(
+                                `Error: No existen registros en la tabla padre '${targetTable}' para la FK '${table.name}.${column.name}'.`
+                            );
+                        }
+
+                        // Extraer los valores disponibles de la columna destino en la tabla padre
+                        const availableValues = parentRows
+                            .map(r => r[targetColumn])
+                            .filter(v => v !== null && v !== undefined);
+
+                        if (availableValues.length === 0) {
+                            throw new Error(
+                                `Error: No hay valores disponibles en '${targetTable}.${targetColumn}' para la FK '${table.name}.${column.name}'.`
+                            );
+                        }
+
+                        const randomParentValue = availableValues[Math.floor(Math.random() * availableValues.length)];
+                        row[column.name] = randomParentValue;
+                    }
+                    // CASO 4: Generación regular por tipo de dato / lista personalizada
+                    else {
+                        const isUniqueRequired = column.isUnique || (column.isPk && !hasCompositePk);
+                        const existingSet = uniqueValuesMap.get(column.name);
+
+                        let generatedVal: any;
+                        let attempts = 0;
+                        const maxAttempts = 1000;
+
+                        do {
+                            generatedVal = generateValueByColumn(column);
+                            attempts++;
+
+                            if (attempts > maxAttempts && isUniqueRequired) {
+                                console.warn(`[Warning]: Rango/Valores agotados para la columna '${column.name}'. Se asigna fallback único.`);
+                                if (typeof generatedVal === 'number') {
+                                    generatedVal = generatedVal + i + Date.now();
+                                } else {
+                                    generatedVal = `${generatedVal}_${i}`;
+                                }
+                                break;
+                            }
+                        } while (isUniqueRequired && existingSet && existingSet.has(generatedVal));
+
+                        row[column.name] = generatedVal;
+                    }
+                });
+
+                // Validación para Claves Primarias Compuestas (evitar tuplas duplicadas)
+                if (hasCompositePk) {
+                    const compositeKeyString = pkColumns.map(c => row[c.name]).join('___');
+                    if (!compositePkSet.has(compositeKeyString)) {
+                        compositePkSet.add(compositeKeyString);
+                        isRowValid = true;
+                    }
+                } else {
+                    isRowValid = true;
                 }
             }
 
-            // Si el MODO POR FILA está activo, elegimos aleatoriamente qué columnas marcadas como nullable se vacían
-            const rowColumnsToNull = isRowModeNullActive
-                ? getRandomSubset(nullableColumns).map(c => c.name)
-                : [];
+            // Si se agotaron las combinaciones posibles en una PK compuesta (ej. 8 alumnos x 8 asignaturas = max 64 combinaciones)
+            if (!isRowValid) {
+                console.warn(`[Warning]: No se pudieron generar más registros únicos para la tabla '${table.name}' debido al número de combinaciones máximas de la Clave Primaria.`);
+                break;
+            }
 
-            table.columns.forEach((column: ColumnSchema) => {
-                let shouldBeNull = false;
-
-                if (column.isNullable && !column.isPk) {
-                    // OPCIÓN A: MODO POR FILA ('per-row') A NIVEL DE TABLA
-                    if (nullConfig.mode === 'per-row') {
-                        if (rowColumnsToNull.includes(column.name)) {
-                            shouldBeNull = true;
-                        }
-                    }
-                    // OPCIÓN B: MODO POR COLUMNA ('per-column') A NIVEL DE TABLA
-                    else if (nullConfig.mode === 'per-column') {
-                        const currentCounter = (colCounters.get(column.name) || 0) + 1;
-                        const target = colTargets.get(column.name) || nullConfig.minInterval;
-
-                        if (currentCounter >= target) {
-                            shouldBeNull = true;
-                            colCounters.set(column.name, 0); // Reiniciar contador de esta columna
-                            const newTarget = getRandomInt(nullConfig.minInterval, nullConfig.maxInterval);
-                            colTargets.set(column.name, newTarget);
-                        } else {
-                            colCounters.set(column.name, currentCounter);
-                        }
-                    }
+            // Registrar y actualizar contadores para columnas autoincrementales y valores únicos simples
+            table.columns.forEach(column => {
+                if (column.isAutoIncrement && row[column.name] !== undefined) {
+                    autoIncrementCounters.set(column.name, row[column.name] + 1);
                 }
-
-                // --- ASIGNACIÓN DE VALORES AL REGISTRO ---
-                // CASO 1: Es columna Autoincremental
-                if (column.isAutoIncrement) {
-                    const currentVal = autoIncrementCounters.get(column.name) || 1;
-                    row[column.name] = currentVal;
-                    autoIncrementCounters.set(column.name, currentVal + 1);
-
-                    // Registrar en el conjunto de únicos si corresponde
-                    if (uniqueValuesMap.has(column.name)) {
-                        uniqueValuesMap.get(column.name)!.add(currentVal);
-                    }
-                }
-                // CASO 2: Dejar celda como NULL
-                else if (shouldBeNull) {
-                    row[column.name] = null;
-                }
-                // CASO 3: Es Foreign Key (FK)
-                else if (column.foreignKey) {
-                    const parentTable = column.foreignKey.targetTable;
-                    const parentPKs = primaryKeyMap.get(parentTable) || [];
-
-                    if (parentPKs.length === 0) {
-                        throw new Error(
-                            `Error: No existen registros o claves primarias en la tabla padre '${parentTable}' para la FK '${table.name}.${column.name}'.`
-                        );
-                    }
-
-                    const randomParentPk = parentPKs[Math.floor(Math.random() * parentPKs.length)];
-                    row[column.name] = randomParentPk;
-                }
-                // CASO 4: Generación regular por DataType o lista de valores personalizados (Soporta restricción UNIQUE)
-                else {
-                    const isUniqueRequired = column.isUnique || column.isPk;
-                    const existingSet = uniqueValuesMap.get(column.name);
-
-                    let generatedVal: any;
-                    let attempts = 0;
-                    const maxAttempts = 1000;
-
-                    // Bucle de reintentos para asegurar unicidad si la columna está marcada como UNIQUE/PK
-                    do {
-                        generatedVal = generateValueByColumn(column);
-                        attempts++;
-
-                        // Mecanismo de seguridad en caso de rangos/listas agotadas
-                        if (attempts > maxAttempts && isUniqueRequired) {
-                            console.warn(`[Warning]: Rango agotado para la columna '${column.name}'. Se genera un valor único fallback.`);
-                            generatedVal = `${generatedVal}_${i}`;
-                            break;
-                        }
-                    } while (isUniqueRequired && existingSet && existingSet.has(generatedVal));
-
-                    if (isUniqueRequired && existingSet) {
-                        existingSet.add(generatedVal);
-                    }
-
-                    row[column.name] = generatedVal;
+                if (uniqueValuesMap.has(column.name) && row[column.name] !== undefined) {
+                    uniqueValuesMap.get(column.name)!.add(row[column.name]);
                 }
             });
 
             tableRows.push(row);
-
-            // Guardar la PK de esta fila para resolver dependencias de tablas hijas
-            if (pkColumn) {
-                generatedPKs.push(row[pkColumn.name]);
-            }
         }
 
         generatedData[table.name] = tableRows;
-
-        if (pkColumn) {
-            primaryKeyMap.set(table.name, generatedPKs);
-        }
+        tableDataMap.set(table.name, tableRows);
     });
 
     return generatedData;

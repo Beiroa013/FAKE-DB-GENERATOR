@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TableSchema, ColumnSchema, DataType, DatabaseSchema, NullabilityConfig, PredefinedListType } from '../types/schema';
 import { PREDEFINED_LIST_OPTIONS } from '../data/predefinedLists';
 
@@ -19,6 +19,7 @@ interface CustomValuesInputProps {
 
 const CustomValuesInput: React.FC<CustomValuesInputProps> = ({ value, onChange }) => {
     const [rawText, setRawText] = useState(value.join(', '));
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const currentJoined = value.join(', ');
@@ -29,6 +30,8 @@ const CustomValuesInput: React.FC<CustomValuesInputProps> = ({ value, onChange }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const inputVal = e.target.value;
+        const cursorPosition = e.target.selectionStart;
+
         setRawText(inputVal);
 
         const parsedValues = inputVal
@@ -37,10 +40,17 @@ const CustomValuesInput: React.FC<CustomValuesInputProps> = ({ value, onChange }
             .filter((v) => v.length > 0);
 
         onChange(parsedValues);
+
+        requestAnimationFrame(() => {
+            if (inputRef.current && cursorPosition !== null) {
+                inputRef.current.setSelectionRange(cursorPosition, cursorPosition);
+            }
+        });
     };
 
     return (
         <input
+            ref={inputRef}
             type="text"
             placeholder="Ej: gonzalez, perez, lopez"
             style={{ width: '95%', fontSize: '12px' }}
@@ -150,7 +160,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                     updateTable(table.id, {
                                         nullabilityConfig: {
                                             ...nullConfig,
-                                            minInterval: Number(e.target.value)
+                                            minInterval: Math.max(1, Number(e.target.value))
                                         }
                                     })
                                 }
@@ -168,7 +178,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                     updateTable(table.id, {
                                         nullabilityConfig: {
                                             ...nullConfig,
-                                            maxInterval: Number(e.target.value)
+                                            maxInterval: Math.max(1, Number(e.target.value))
                                         }
                                     })
                                 }

@@ -2,7 +2,6 @@ import { DatabaseSchema, TableSchema, DataType } from '../types/schema.js';
 import { sortTablesByDependencies } from '../utils/topologicalSort.js';
 import { GeneratedDatabaseData } from './dataGenerator.js';
 
-
 /**
  * Mapea los tipos de datos de la aplicación (DataType) a tipos de datos nativos de SQL.
  * Convierte tipos como EMAIL o PHONE a VARCHAR válidos para el motor de base de datos.
@@ -75,12 +74,14 @@ export function generateSqlScript(schema: DatabaseSchema, generatedData: Generat
     sqlContent += `USE \`${schema.dbName}\`;\n\n`;
 
     // 2. Ordenar las tablas topológicamente (padres primero, hijas después)
-    // Esto evita errores de referencia al ejecutar los 'CREATE TABLE' que contienen FKs
     const sortedTables = sortTablesByDependencies(schema.tables);
 
     // 3. Generar CREATE TABLE respetando el orden topológico
     sortedTables.forEach((table: TableSchema) => {
         sqlContent += `CREATE TABLE IF NOT EXISTS \`${table.name}\` (\n`;
+
+        const pkColumns = table.columns.filter(col => col.isPk);
+        const hasCompositePk = pkColumns.length > 1;
 
         const columnDefinitions: string[] = [];
         const fkDefinitions: string[] = [];
@@ -90,7 +91,8 @@ export function generateSqlScript(schema: DatabaseSchema, generatedData: Generat
             const sqlDataType = mapDataTypeToSql(col.type);
             let def = `  \`${col.name}\` ${sqlDataType}`;
 
-            if (col.isPk) {
+            // Si es PK simple (solo 1 PK en la tabla), se puede declarar en línea
+            if (col.isPk && !hasCompositePk) {
                 def += ' PRIMARY KEY';
             }
             if (col.isAutoIncrement) {
@@ -110,8 +112,15 @@ export function generateSqlScript(schema: DatabaseSchema, generatedData: Generat
             }
         });
 
-        // Combinar definiciones de columnas y restricciones Foreign Key en una sola lista
+        // Combinar definiciones de columnas y restricciones Foreign Key
         const allDefinitions = [...columnDefinitions, ...fkDefinitions];
+
+        // Si la tabla posee una clave primaria compuesta (2 o más columnas marcadas como PK), la añadimos al final
+        if (hasCompositePk) {
+            const compositePkNames = pkColumns.map(col => `\`${col.name}\``).join(', ');
+            allDefinitions.push(`  PRIMARY KEY (${compositePkNames})`);
+        }
+
         sqlContent += allDefinitions.join(',\n');
         sqlContent += `\n);\n\n`;
     });
