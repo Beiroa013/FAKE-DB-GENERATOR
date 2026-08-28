@@ -1,9 +1,9 @@
 /**
  * Este módulo traduce un tipo de dato abstracto (DataType) a un valor ficticio realista mapeando cada caso de uso con las API especializadas de Faker.
  */
-import { faker } from '@faker-js/faker'; //Importa la librería encargada de generar datos aleatorios de prueba.
-import { DataType, ColumnSchema } from '../types/schema.js'; //Importa la unión de tipos y la interfaz de la columna.
-import { PREDEFINED_LISTS } from '../data/predefinedLists.js'; // Importa las listas de datos predefinidos.
+import { faker } from '@faker-js/faker';
+import { DataType, ColumnSchema } from '../types/schema.js';
+import { PREDEFINED_LISTS } from '../data/predefinedLists.js';
 
 /**
  * Auxiliar para formatear o limitar decimales en FLOATS.
@@ -21,8 +21,18 @@ function formatFloat(val: number, decimals: number = 2): number {
 export function generateValueByColumn(column: ColumnSchema): string | number | boolean {
     const decimals = column.decimalPlaces ?? 2;
 
-    // 1. Si el usuario definió una lista personalizada de valores y no está vacía
-    if ((column.valueSourceType === 'CUSTOM_LIST' || !column.valueSourceType) && column.customValues && column.customValues.length > 0) {
+    // 1. Evalúa si el usuario seleccionó implícita o explícitamente una Lista Predefinida
+    if (column.valueSourceType === 'PREDEFINED_LIST' || column.predefinedList) {
+        const selectedListKey = column.predefinedList || 'NOMBRES';
+        const list = PREDEFINED_LISTS[selectedListKey];
+        if (list && list.length > 0) {
+            const randomIndex = Math.floor(Math.random() * list.length);
+            return list[randomIndex];
+        }
+    }
+
+    // 2. Evalúa si se ha seleccionado una Lista Personalizada
+    if (column.valueSourceType === 'CUSTOM_LIST' && column.customValues && column.customValues.length > 0) {
         const validValues = column.customValues.filter(v => v.trim() !== '');
 
         if (validValues.length > 0) {
@@ -41,8 +51,8 @@ export function generateValueByColumn(column: ColumnSchema): string | number | b
         }
     }
 
-    // 2. Si el usuario definió un rango numérico (INT o FLOAT)
-    if ((column.valueSourceType === 'RANGE' || !column.valueSourceType) && column.numericRange) {
+    // 3. Evalúa si se ha configurado un Rango Numérico (INT o FLOAT)
+    if (column.valueSourceType === 'RANGE' && column.numericRange) {
         const { min, max } = column.numericRange;
         if (column.type === 'INT') {
             return faker.number.int({ min, max });
@@ -53,19 +63,7 @@ export function generateValueByColumn(column: ColumnSchema): string | number | b
         }
     }
 
-    // 3. Si el usuario selecciona las listas predefinidas
-    if (column.valueSourceType === 'PREDEFINED_LIST' || column.predefinedList) {
-        const selectedListKey = column.predefinedList;
-        if (selectedListKey && PREDEFINED_LISTS[selectedListKey]) {
-            const list = PREDEFINED_LISTS[selectedListKey];
-            if (list.length > 0) {
-                const randomIndex = Math.floor(Math.random() * list.length);
-                return list[randomIndex];
-            }
-        }
-    }
-
-    // 4. Generación automática estándar por DataType
+    // 4. Generación automática estándar por DataType (para el modo 100% Aleatorio / RANDOM)
     return generateValueByColumnDataType(column);
 }
 

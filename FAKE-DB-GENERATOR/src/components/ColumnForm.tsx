@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TableSchema, ColumnSchema, DataType, DatabaseSchema, NullabilityConfig, PredefinedListType } from '../types/schema';
 import { PREDEFINED_LIST_OPTIONS } from '../data/predefinedLists';
 
@@ -11,6 +11,44 @@ interface ColumnFormProps {
 const DATA_TYPES: DataType[] = [
     'INT', 'FLOAT', 'VARCHAR', 'NVARCHAR', 'TEXT', 'BOOLEAN', 'DATE', 'DATETIME', 'UUID', 'EMAIL', 'PHONE'
 ];
+
+interface CustomValuesInputProps {
+    value: string[];
+    onChange: (values: string[]) => void;
+}
+
+const CustomValuesInput: React.FC<CustomValuesInputProps> = ({ value, onChange }) => {
+    const [rawText, setRawText] = useState(value.join(', '));
+
+    useEffect(() => {
+        const currentJoined = value.join(', ');
+        if (currentJoined !== rawText && !rawText.endsWith(',')) {
+            setRawText(currentJoined);
+        }
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const inputVal = e.target.value;
+        setRawText(inputVal);
+
+        const parsedValues = inputVal
+            .split(',')
+            .map((v) => v.trim())
+            .filter((v) => v.length > 0);
+
+        onChange(parsedValues);
+    };
+
+    return (
+        <input
+            type="text"
+            placeholder="Ej: gonzalez, perez, lopez"
+            style={{ width: '95%', fontSize: '12px' }}
+            value={rawText}
+            onChange={handleChange}
+        />
+    );
+};
 
 export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTable }) => {
     const addColumn = () => {
@@ -158,7 +196,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                     {table.columns.map((col) => {
                         const selectedParentTable = schema.tables.find((t) => t.name === col.foreignKey?.targetTable);
                         const isNumeric = col.type === 'INT' || col.type === 'FLOAT';
-                        const isTextType = col.type === 'VARCHAR' || col.type === 'NVARCHAR';
+                        const isTextType = col.type === 'VARCHAR' || col.type === 'NVARCHAR' || col.type === 'TEXT';
                         const isFk = Boolean(col.foreignKey?.targetTable);
 
                         let currentMode = col.valueSourceType || 'RANDOM';
@@ -180,11 +218,11 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                 <td>
                                     <select
                                         value={col.type}
-                                        disabled={isFk} // Bloqueado si es FK para prevenir desajustes
+                                        disabled={isFk}
                                         onChange={(e) => {
                                             const newType = e.target.value as DataType;
                                             const isNewTypeNumeric = newType === 'INT' || newType === 'FLOAT';
-                                            const isNewTypeText = newType === 'VARCHAR' || newType === 'NVARCHAR';
+                                            const isNewTypeText = newType === 'VARCHAR' || newType === 'NVARCHAR' || newType === 'TEXT';
 
                                             const updatedValues: Partial<ColumnSchema> = {
                                                 type: newType,
@@ -243,15 +281,13 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                                 updateColumn(col.id, { foreignKey: undefined });
                                             } else {
                                                 const pTable = schema.tables.find((t) => t.name === targetTable);
-                                                // Buscar columna PK o usar la primera por defecto
                                                 const pkColObj = pTable?.columns.find((c) => c.isPk) || pTable?.columns[0];
                                                 const pkColName = pkColObj?.name || 'id';
                                                 const pkColType = pkColObj?.type || 'INT';
 
                                                 updateColumn(col.id, {
-                                                    type: pkColType, // Copia automática del tipo de dato referenciado
+                                                    type: pkColType,
                                                     foreignKey: { targetTable, targetColumn: pkColName },
-                                                    // Limpieza de configuraciones de valor no aplicables a FK
                                                     valueSourceType: 'RANDOM',
                                                     customValues: undefined,
                                                     numericRange: undefined,
@@ -274,7 +310,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                                 const targetColObj = selectedParentTable.columns.find((c) => c.name === targetColName);
 
                                                 updateColumn(col.id, {
-                                                    type: targetColObj?.type || col.type, // Ajustar al tipo del campo seleccionado si cambia
+                                                    type: targetColObj?.type || col.type,
                                                     foreignKey: { ...col.foreignKey!, targetColumn: targetColName }
                                                 });
                                             }}
@@ -301,7 +337,13 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                                     } else if (mode === 'RANGE') {
                                                         updateColumn(col.id, { valueSourceType: 'RANGE', customValues: undefined, numericRange: { min: 1, max: 100 }, predefinedList: undefined });
                                                     } else if (mode === 'PREDEFINED_LIST') {
-                                                        updateColumn(col.id, { valueSourceType: 'PREDEFINED_LIST', customValues: undefined, numericRange: undefined, predefinedList: 'NOMBRES' });
+                                                        const defaultList = col.predefinedList || (PREDEFINED_LIST_OPTIONS[0]?.value as PredefinedListType) || 'DNI';
+                                                        updateColumn(col.id, {
+                                                            valueSourceType: 'PREDEFINED_LIST',
+                                                            customValues: undefined,
+                                                            numericRange: undefined,
+                                                            predefinedList: defaultList
+                                                        });
                                                     } else {
                                                         updateColumn(col.id, { valueSourceType: 'RANDOM', customValues: undefined, numericRange: undefined, predefinedList: undefined });
                                                     }
@@ -315,15 +357,9 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
 
                                             {currentMode === 'CUSTOM_LIST' && (
                                                 <div style={{ marginTop: '5px' }}>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Ej: Masculino, Femenino"
-                                                        style={{ width: '90%' }}
-                                                        value={col.customValues?.join(', ') || ''}
-                                                        onChange={(e) => {
-                                                            const valuesArray = e.target.value.split(',').map((v) => v.trim());
-                                                            updateColumn(col.id, { customValues: valuesArray });
-                                                        }}
+                                                    <CustomValuesInput
+                                                        value={col.customValues || []}
+                                                        onChange={(newValues) => updateColumn(col.id, { customValues: newValues })}
                                                     />
                                                 </div>
                                             )}
@@ -331,7 +367,7 @@ export const ColumnForm: React.FC<ColumnFormProps> = ({ table, schema, updateTab
                                             {currentMode === 'PREDEFINED_LIST' && isTextType && (
                                                 <div style={{ marginTop: '5px' }}>
                                                     <select
-                                                        value={col.predefinedList || 'NOMBRES'}
+                                                        value={col.predefinedList || 'DNI'}
                                                         onChange={(e) => updateColumn(col.id, { predefinedList: e.target.value as PredefinedListType })}
                                                         style={{ width: '95%' }}
                                                     >

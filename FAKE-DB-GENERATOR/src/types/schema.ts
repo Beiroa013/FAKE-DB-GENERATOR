@@ -42,7 +42,7 @@ export interface NumericRange {
 }
 
 // Tipos de listas predefinidas disponibles
-export type PredefinedListType = 'NOMBRES' | 'APELLIDOS' | 'FABRICANTES_VEHICULOS' | 'VEHICULOS' | 'OBJETOS';
+export type PredefinedListType = 'NOMBRES' | 'APELLIDOS' | 'FABRICANTES_VEHICULOS' | 'VEHICULOS' | 'OBJETOS' | 'ANIMALES' | 'COLORES' | 'DNI';
 
 // Extendemos los orígenes de valor posibles
 export type ValueSourceType = 'RANDOM' | 'CUSTOM_LIST' | 'RANGE' | 'PREDEFINED_LIST';

@@ -1,3 +1,22 @@
+import { faker } from '@faker-js/faker';
+
+/**
+ * Genera un DNI con 8 dígitos aleatorios y su letra de control oficial correspondiente.
+ */
+function generateRandomDNI(): string {
+    const letters = 'TRWAGMYFPDXBNJZSQVHLCKE';
+    const number = faker.number.int({ min: 10000000, max: 99999999 });
+    const letter = letters[number % 23];
+    return `${number}${letter}`;
+}
+
+/**
+ * Genera un array con la cantidad deseada de DNIs aleatorios.
+ */
+function generateDNIArray(count: number = 1000): string[] {
+    return Array.from({ length: count }, () => generateRandomDNI());
+}
+
 export const PREDEFINED_LISTS: Record<string, string[]> = {
     NOMBRES: [
         'Alejandro', 'Sofía', 'Mateo', 'Lucía', 'Carlos', 'Valeria', 'Daniel', 'María', 'Javier', 'Elena',
@@ -755,6 +774,8 @@ export const PREDEFINED_LISTS: Record<string, string[]> = {
         'Plata', 'Plata clara', 'Plata oscura', 'Plata brillante', 'Plata metálica', 'Plata grisácea',
         'Dorado', 'Dorado claro', 'Dorado oscuro', 'Dorado brillante', 'Dorado metálico', 'Dorado amarillento'
     ]
+    ,
+    DNI: generateDNIArray(1000)
 
 };
 
@@ -766,5 +787,6 @@ export const PREDEFINED_LIST_OPTIONS = [
     { label: '🚗 Vehículos (Coches, Motos, Lanchas)', value: 'VEHICULOS' },
     { label: '📦 Objetos Comunes (1000)', value: 'OBJETOS' },
     { label: '🐾 Animales (1000)', value: 'ANIMALES' },
-    { label: '🎨 Colores y tonalidades (35)', value: 'COLORES' }
+    { label: '🎨 Colores y tonalidades (35)', value: 'COLORES' },
+    { label: 'DNI / NIF', value: 'DNI' }
 ];
