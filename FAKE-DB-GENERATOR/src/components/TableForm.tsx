@@ -8,7 +8,6 @@ interface TableFormProps {
 }
 
 export const TableForm: React.FC<TableFormProps> = ({ schema, setSchema }) => {
-    // Estado para rastrear qué tablas están minimizadas por su ID
     const [collapsedTables, setCollapsedTables] = useState<Record<string, boolean>>({});
 
     const toggleCollapse = (tableId: string) => {
@@ -32,14 +31,39 @@ export const TableForm: React.FC<TableFormProps> = ({ schema, setSchema }) => {
         });
     };
 
+    const inputStyle: React.CSSProperties = {
+        padding: '6px 10px',
+        borderRadius: '6px',
+        border: '1px solid #CBD5E0',
+        backgroundColor: '#FFFFFF',
+        fontSize: '0.9rem',
+        outline: 'none',
+        color: '#2D3748'
+    };
+
     return (
-        <div>
-            <h2>Tablas de la Base de Datos</h2>
+        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+            <h2 style={{
+                fontSize: '1.15rem',
+                fontWeight: '600',
+                color: '#4A5568',
+                marginBottom: '20px'
+            }}>
+                Estructura de Tablas
+            </h2>
 
             {schema.tables.length === 0 ? (
-                <p style={{ color: '#666', fontStyle: 'italic' }}>
-                    No hay tablas creadas. Utiliza el botón "Nueva tabla" en la parte superior para crear una.
-                </p>
+                <div style={{
+                    border: '2px dashed #CBD5E0',
+                    borderRadius: '12px',
+                    padding: '40px',
+                    textAlign: 'center',
+                    backgroundColor: '#FFFFFF'
+                }}>
+                    <p style={{ color: '#A0AEC0', fontSize: '0.95rem', margin: 0 }}>
+                        No hay tablas configuradas. Haz clic en <strong>➕ Nueva tabla</strong> arriba para empezar.
+                    </p>
+                </div>
             ) : (
                 schema.tables.map((table) => {
                     const isCollapsed = collapsedTables[table.id] || false;
@@ -48,55 +72,81 @@ export const TableForm: React.FC<TableFormProps> = ({ schema, setSchema }) => {
                         <div
                             key={table.id}
                             style={{
-                                border: '1px solid #ccc',
-                                margin: '15px 0',
-                                padding: '15px',
-                                backgroundColor: '#fff'
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '12px',
+                                marginBottom: '20px',
+                                padding: '20px',
+                                backgroundColor: '#FFFFFF',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02)',
+                                transition: 'all 0.2s ease'
                             }}
                         >
-                            {/* Cabecera de la Tabla (siempre visible) */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div>
-                                    {/* Botón para Minimizar / Desplegar */}
+                            {/* CABECERA TARJETA TABLA */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                    {/* Botón Minimizar / Desplegar pastel */}
                                     <button
                                         onClick={() => toggleCollapse(table.id)}
                                         style={{
-                                            marginRight: '10px',
-                                            padding: '2px 8px',
+                                            padding: '4px 10px',
                                             fontWeight: 'bold',
-                                            cursor: 'pointer'
+                                            fontSize: '0.9rem',
+                                            cursor: 'pointer',
+                                            backgroundColor: isCollapsed ? '#EBF8FF' : '#EDF2F7',
+                                            color: isCollapsed ? '#2B6CB0' : '#4A5568',
+                                            border: 'none',
+                                            borderRadius: '6px'
                                         }}
                                         title={isCollapsed ? 'Desplegar tabla' : 'Minimizar tabla'}
                                     >
-                                        {isCollapsed ? '+' : '−'}
+                                        {isCollapsed ? '➕' : '➖'}
                                     </button>
 
-                                    <label>
-                                        <strong>Nombre Tabla: </strong>
+                                    <label style={{ fontSize: '0.9rem', fontWeight: '500', color: '#4A5568' }}>
+                                        Nombre: &nbsp;
                                         <input
                                             type="text"
                                             value={table.name}
                                             onChange={(e) => updateTable(table.id, { name: e.target.value })}
+                                            style={inputStyle}
                                         />
                                     </label>
-                                    &nbsp;&nbsp;
-                                    <label>
-                                        <strong>Nº Registros: </strong>
+
+                                    <label style={{ fontSize: '0.9rem', fontWeight: '500', color: '#4A5568' }}>
+                                        Registros: &nbsp;
                                         <input
                                             type="number"
                                             min="1"
                                             value={table.rowCount}
                                             onChange={(e) => updateTable(table.id, { rowCount: Number(e.target.value) })}
+                                            style={{ ...inputStyle, width: '70px' }}
                                         />
                                     </label>
                                 </div>
 
-                                <button onClick={() => removeTable(table.id)}>Eliminar Tabla</button>
+                                <button
+                                    onClick={() => removeTable(table.id)}
+                                    style={{
+                                        padding: '6px 12px',
+                                        fontSize: '0.85rem',
+                                        color: '#C53030',
+                                        backgroundColor: '#FFF5F5',
+                                        border: '1px solid #FEB2B2',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Eliminar
+                                </button>
                             </div>
 
-                            {/* Contenido desplegable (se oculta al minimizar) */}
+                            {/* CONTENIDO DESPLEGABLE */}
                             {!isCollapsed && (
-                                <div style={{ marginTop: '15px' }}>
+                                <div style={{
+                                    marginTop: '20px',
+                                    paddingTop: '16px',
+                                    borderTop: '1px dashed #E2E8F0'
+                                }}>
                                     <ColumnForm table={table} schema={schema} updateTable={updateTable} />
                                 </div>
                             )}

@@ -15,7 +15,6 @@ export const App: React.FC = () => {
     const [generatedSql, setGeneratedSql] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
-    // Generar el Script SQL final
     const handleGenerate = () => {
         try {
             setError(null);
@@ -31,7 +30,6 @@ export const App: React.FC = () => {
         }
     };
 
-    // Lógica para el botón "Nueva tabla" desde el Header
     const handleAddTable = () => {
         const newTable: TableSchema = {
             id: crypto.randomUUID(),
@@ -49,40 +47,50 @@ export const App: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            fontFamily: 'sans-serif',
+            fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+            backgroundColor: '#F7F9FC',
+            color: '#2D3748',
             boxSizing: 'border-box'
         }}>
 
-            {/* 1. CABECERA FIJA (Header) */}
+            {/* CABECERA PRINCIPAL */}
             <header style={{
                 flexShrink: 0,
-                padding: '20px 30px',
-                borderBottom: '3px solid #1a1a1a',
-                backgroundColor: '#ffffff',
+                padding: '20px 36px',
+                backgroundColor: '#FFFFFF',
+                borderBottom: '1px solid #E2E8F0',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 zIndex: 10
             }}>
-                {/* Lado Izquierdo: Títulos y Nombre BDD */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
                         <h1 style={{
                             margin: 0,
-                            fontSize: '1.5rem',
-                            borderBottom: '3px solid #1a1a1a',
-                            display: 'inline-block',
-                            paddingBottom: '5px'
+                            fontSize: '1.4rem',
+                            fontWeight: '700',
+                            color: '#2B6CB0',
+                            letterSpacing: '-0.3px'
                         }}>
                             Generador de Datos Ficticios & SQL
                         </h1>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{
+                            fontWeight: '600',
+                            fontSize: '0.88rem',
+                            color: '#718096'
+                        }}>
+                            Base de Datos:
+                        </span>
                         <div style={{
-                            border: '2px solid #1a1a1a',
-                            padding: '4px 8px'
+                            backgroundColor: '#EDF2F7',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid #CBD5E0'
                         }}>
                             <DatabaseConfig
                                 dbName={schema.dbName}
@@ -92,51 +100,91 @@ export const App: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Lado Derecho: Botones con sus estilos originales */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '200px' }}>
+                {/* BOTONES ACCIÓN SUPERIOR */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: '210px' }}>
                     <button
                         onClick={handleGenerate}
-                        style={{ padding: '10px 20px', fontSize: '16px' }}
+                        style={{
+                            padding: '10px 18px',
+                            fontSize: '0.92rem',
+                            fontWeight: '600',
+                            color: '#2B6CB0',
+                            backgroundColor: '#EBF8FF',
+                            border: '1px solid #BEE3F8',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            boxShadow: '0 2px 4px rgba(66, 153, 225, 0.08)'
+                        }}
                     >
                         🚀 Generar Script SQL
                     </button>
 
                     <button
                         onClick={handleAddTable}
-                        style={{ padding: '10px 20px', fontSize: '16px' }}
+                        style={{
+                            padding: '10px 18px',
+                            fontSize: '0.92rem',
+                            fontWeight: '600',
+                            color: '#2F855A',
+                            backgroundColor: '#F0FFF4',
+                            border: '1px solid #C6F6D5',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            boxShadow: '0 2px 4px rgba(72, 187, 120, 0.08)'
+                        }}
                     >
                         ➕ Nueva tabla
                     </button>
 
                     {error && (
-                        <div style={{ color: 'red', fontSize: '13px', fontWeight: 'bold' }}>
-                            Error: {error}
+                        <div style={{
+                            color: '#C53030',
+                            backgroundColor: '#FFF5F5',
+                            border: '1px solid #FEB2B2',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            fontWeight: '500'
+                        }}>
+                            {error}
                         </div>
                     )}
                 </div>
             </header>
 
-            {/* 2. ÁREA CENTRAL (Tablas con scroll propio) */}
+            {/* CONTENEDOR DE TABLAS (SCROLL INDEPENDIENTE) */}
             <main style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: '30px'
+                padding: '32px 36px',
+                backgroundColor: '#F7F9FC'
             }}>
                 <TableForm schema={schema} setSchema={setSchema} />
             </main>
 
-            {/* 3. ZONA INFERIOR (SQL Generado) */}
+            {/* SALIDA DE SCRIPT SQL GENERADO */}
             {generatedSql && (
                 <footer style={{
                     flexShrink: 0,
-                    height: '35%',
-                    minHeight: '250px',
-                    borderTop: '3px solid #1a1a1a',
-                    backgroundColor: '#ffffff',
-                    padding: '20px 30px',
-                    overflowY: 'auto'
+                    height: '38%',
+                    minHeight: '260px',
+                    borderTop: '1px solid #E2E8F0',
+                    backgroundColor: '#FFFFFF',
+                    padding: '20px 36px',
+                    overflowY: 'auto',
+                    boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.03)'
                 }}>
-                    <h3 style={{ marginTop: 0 }}>SQL Generado</h3>
+                    <h3 style={{ marginTop: 0, color: '#4A5568', fontSize: '1.1rem' }}>SQL Generado</h3>
                     <SqlOutput sql={generatedSql} dbName={schema.dbName} />
                 </footer>
             )}
